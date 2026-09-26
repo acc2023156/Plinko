@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#8e1a17"/>
+      <stop offset="1" stop-color="#3a080b"/>
+    </radialGradient>
+    <radialGradient id="ball" cx="38%" cy="32%" r="70%">
+      <stop offset="0" stop-color="#fffdf6"/>
+      <stop offset=".55" stop-color="#ffc641"/>
+      <stop offset="1" stop-color="#b9761a"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <g fill="#ffe7a3">
+    <circle cx="32" cy="24" r="3"/>
+    <circle cx="23" cy="33" r="3"/><circle cx="41" cy="33" r="3"/>
+    <circle cx="14" cy="42" r="3"/><circle cx="32" cy="42" r="3"/><circle cx="50" cy="42" r="3"/>
+  </g>
+  <circle cx="38" cy="13" r="7" fill="url(#ball)" stroke="#6b1117" stroke-width="1.2"/>
+  <g>
+    <rect x="5" y="50" width="9.6" height="8" rx="2.5" fill="#e33d29"/>
+    <rect x="16.1" y="50" width="9.6" height="8" rx="2.5" fill="#f28c28"/>
+    <rect x="27.2" y="50" width="9.6" height="8" rx="2.5" fill="#ffc641"/>
+    <rect x="38.3" y="50" width="9.6" height="8" rx="2.5" fill="#f28c28"/>
+    <rect x="49.4" y="50" width="9.6" height="8" rx="2.5" fill="#e33d29"/>
+  </g>
+</svg>
