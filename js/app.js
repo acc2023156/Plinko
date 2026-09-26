@@ -2,7 +2,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const els = {
-    balance: $('balance'), refill: $('refill'), back: $('back'),
+    balance: $('balance'), refill: $('refill'), back: $('back'), sound: $('sound'),
     betAmount: $('betAmount'), half: $('half'), double: $('double'),
     risk: $('risk'), rows: $('rows'), numberOfBets: $('numberOfBets'),
     betBtn: $('betBtn'), history: $('history'), toast: $('toast'),
@@ -41,7 +41,8 @@
   els.risk.value = settings.risk;
   els.betAmount.value = settings.bet.toFixed(2);
 
-  const board = new Board($('board'), onLand);
+  const board = new Board($('board'), onLand, () => Sound.peg());
+  const confetti = new Confetti();
   const stats = new LiveStats({
     profit: $('statProfit'), wagered: $('statWagered'),
     wins: $('statWins'), losses: $('statLosses'), chart: $('chart'),
@@ -96,6 +97,7 @@
     balance = Math.round((balance - bet) * 100) / 100;
     renderBalance();
     board.drop(Plinko.play(els.risk.value, +els.rows.value), { bet });
+    Sound.drop();
     syncLocks();
     return true;
   }
@@ -106,7 +108,20 @@
     renderBalance();
     stats.add(bet, payout);
     pushHistory(result);
+    celebrate(result);
     syncLocks();
+  }
+
+  function celebrate(result) {
+    Sound.land(result.multiplier);
+    if (result.multiplier <= 1) return;
+    const [x, y] = board.slotPoint(result.slot);
+    confetti.burst(x, y, result.multiplier >= 10 ? 90 : 24);
+  }
+
+  function renderSound() {
+    els.sound.textContent = Sound.enabled ? '🔊' : '🔇';
+    els.sound.classList.toggle('off', !Sound.enabled);
   }
 
   function pushHistory(result) {
@@ -149,6 +164,7 @@
   }));
 
   els.betBtn.addEventListener('click', () => {
+    Sound.unlock();
     if (mode === 'manual') placeBet();
     else if (autoTimer) stopAuto();
     else startAuto();
@@ -171,6 +187,9 @@
     renderBalance();
     toast(t('refilled'));
   });
+
+  els.sound.addEventListener('click', () => { Sound.toggle(); Sound.unlock(); renderSound(); });
+  renderSound();
 
   $('resetStats').addEventListener('click', () => stats.reset());
 

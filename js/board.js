@@ -1,10 +1,11 @@
 // Canvas peg board. Positions are kept in "grid units" (1 unit = peg spacing),
 // measured from the top peg row's center, so a resize never disturbs balls in flight.
 class Board {
-  constructor(canvas, onLand) {
+  constructor(canvas, onLand, onPeg) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.onLand = onLand;
+    this.onPeg = onPeg;
     this.balls = [];
     this.pegHits = new Map();
     this.slotHits = [];
@@ -46,6 +47,13 @@ class Board {
 
   toPx(x, y) { return [this.cx + x * this.gap, this.y0 + y * this.gap]; }
 
+  // Viewport coordinates of a slot's center, for effects drawn outside the canvas.
+  slotPoint(slot) {
+    const [x, y] = this.toPx(slot - this.rows / 2, this.rows - 1 + 0.9);
+    const rect = this.canvas.getBoundingClientRect();
+    return [rect.left + x, rect.top + y];
+  }
+
   // Waypoints: drop point, the contact on one peg per row, then the slot.
   drop(result, payload) {
     const pts = [[(Math.random() - 0.5) * 0.3, -1.1]];
@@ -68,7 +76,10 @@ class Board {
         b.segStart += dur;
         b.seg++;
         const p = b.pts[b.seg];
-        if (p.length > 2) this.pegHits.set(`${p[2]}:${p[3]}`, now);
+        if (p.length > 2) {
+          this.pegHits.set(`${p[2]}:${p[3]}`, now);
+          if (this.onPeg) this.onPeg();
+        }
       }
       if (b.seg >= b.pts.length - 1) {
         this.balls.splice(i, 1);

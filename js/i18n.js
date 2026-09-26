@@ -32,6 +32,7 @@ const I18N = {
     insufficient: '餘額不足',
     locked: '球落下中，暫時無法變更',
     refilled: '已補充示範餘額',
+    sound: '音效開關',
   },
 };
 
