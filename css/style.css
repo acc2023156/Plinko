@@ -65,14 +65,47 @@ button:disabled, select:disabled, input:disabled { cursor: not-allowed; opacity:
 
 .logo {
   justify-self: center;
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 900;
-  letter-spacing: 2px;
+  line-height: 1.5;
+}
+
+/* 16-character marquee window in the header. */
+.marquee {
+  display: block;
+  width: 16em;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px 0;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, .28);
+  box-shadow: inset 0 0 0 1px rgba(255, 198, 65, .35);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 20s linear infinite;
+}
+.marquee-track span {
   background: linear-gradient(180deg, var(--gold-light), var(--gold) 55%, #d89b42);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .wallet {
@@ -95,8 +128,17 @@ button:disabled, select:disabled, input:disabled { cursor: not-allowed; opacity:
   font-weight: 900;
   font-size: 14px;
 }
+.balance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.balance:active { transform: scale(.96); }
 .wallet strong { font-size: 15px; font-variant-numeric: tabular-nums; }
-.refill, .sound {
+.sound {
   width: 26px;
   height: 26px;
   border: 0;
@@ -108,12 +150,14 @@ button:disabled, select:disabled, input:disabled { cursor: not-allowed; opacity:
 
 @media (max-width: 420px) {
   .topbar { gap: 6px; padding-left: 8px; padding-right: 8px; }
-  .back { padding: 5px 9px 5px 6px; font-size: 12px; }
-  .logo { font-size: 18px; letter-spacing: 1px; }
+  .back { padding: 4px 9px 5px 8px; }
+  .back span + span { display: none; }
+  .logo { font-size: 12px; }
   .wallet { gap: 3px; }
+  .balance { gap: 4px; }
   .wallet strong { font-size: 13px; }
   .coin { width: 20px; height: 20px; font-size: 12px; }
-  .refill, .sound { width: 22px; }
+  .sound { width: 22px; }
 }
 
 /* ---------- layout (mobile first) ---------- */
@@ -164,6 +208,39 @@ button:disabled, select:disabled, input:disabled { cursor: not-allowed; opacity:
   animation: drop-in .25s ease-out;
 }
 .history li:nth-child(n+5) { opacity: .6; }
+/* Tap-to-bet hint (same finger as the Dice game), in the empty top-left of the board. */
+.board-card { cursor: pointer; touch-action: manipulation; user-select: none; }
+.tap-hint {
+  position: absolute;
+  left: 8%;
+  top: 22%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: rgba(255, 240, 170, .85);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .25s;
+}
+.tap-hint.show { opacity: 1; transition: opacity .6s .9s; }
+.tap-hint svg { position: relative; z-index: 1; width: 34px; height: 34px; animation: tap 1.8s ease-in-out infinite; }
+.tap-hint .ripple {
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin-left: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 240, 170, .75);
+  opacity: 0;
+  animation: ripple 1.8s ease-out infinite;
+}
+.tap-hint em { margin-top: 4px; font-size: 11px; font-style: normal; letter-spacing: 1px; white-space: nowrap; }
+@keyframes tap { 0%, 55%, 100% { transform: translateY(0); } 30% { transform: translateY(5px) scale(.94); } }
+@keyframes ripple { 0%, 28% { transform: scale(.3); opacity: 0; } 32% { opacity: .9; } 75%, 100% { transform: scale(1.6); opacity: 0; } }
+
 @keyframes drop-in { from { transform: translateY(-8px); opacity: 0; } }
 
 .panel {

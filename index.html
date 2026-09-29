@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#4a0c10">
-  <title>PLINKO 彈珠台</title>
+  <title>珠珠寶貝</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,11 +16,9 @@
     <a class="back" id="back" href="https://acc2023156.github.io/Boss88VIP/boss88-mobile-lobby.html" data-i18n-title="back">
       <span aria-hidden="true">‹</span><span data-i18n="back">返回大廳</span>
     </a>
-    <h1 class="logo">PLINKO</h1>
+    <h1 class="logo"><span class="sr-only" data-i18n="title">珠珠寶貝</span><span class="marquee" aria-hidden="true"><span class="marquee-track" id="marquee"></span></span></h1>
     <div class="wallet">
-      <span class="coin" aria-hidden="true">$</span>
-      <strong id="balance">0.00</strong>
-      <button class="refill" id="refill" type="button" data-i18n-title="refill">↻</button>
+      <button class="balance" id="balance" type="button" data-i18n-title="refill"><span class="coin" aria-hidden="true">$</span><strong id="balanceValue">0.00</strong></button>
       <button class="sound" id="sound" type="button" data-i18n-title="sound">🔊</button>
     </div>
   </header>
@@ -29,12 +27,17 @@
     <section class="board-card">
       <canvas id="board"></canvas>
       <ol class="history" id="history" data-i18n-title="history"></ol>
+      <div class="tap-hint" id="tapHint" aria-hidden="true">
+        <span class="ripple"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V4.5a1.5 1.5 0 0 1 3 0V10m0-1.2a1.5 1.5 0 0 1 3 0V11m0-.8a1.5 1.5 0 0 1 3 0v4.3a6 6 0 0 1-6 6h-.6a6 6 0 0 1-4.9-2.5l-2.4-3.4a1.5 1.5 0 0 1 2.3-1.9L9 15"/></svg>
+        <em id="tapHintText"></em>
+      </div>
     </section>
 
-    <section class="panel controls">
+    <section class="panel controls is-auto">
       <div class="tabs" role="tablist">
-        <button type="button" role="tab" class="tab active" data-mode="manual" data-i18n="manual">手動</button>
-        <button type="button" role="tab" class="tab" data-mode="auto" data-i18n="auto">自動</button>
+        <button type="button" role="tab" class="tab" data-mode="manual" data-i18n="manual">手動</button>
+        <button type="button" role="tab" class="tab active" data-mode="auto" data-i18n="auto">自動</button>
       </div>
 
       <label class="field">

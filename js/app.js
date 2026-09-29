@@ -2,7 +2,9 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const els = {
-    balance: $('balance'), refill: $('refill'), back: $('back'), sound: $('sound'),
+    balance: $('balance'), balanceValue: $('balanceValue'), back: $('back'), sound: $('sound'),
+    boardCard: document.querySelector('.board-card'), tapHint: $('tapHint'), tapHintText: $('tapHintText'),
+    marquee: $('marquee'),
     betAmount: $('betAmount'), half: $('half'), double: $('double'),
     risk: $('risk'), rows: $('rows'), numberOfBets: $('numberOfBets'),
     betBtn: $('betBtn'), history: $('history'), toast: $('toast'),
@@ -25,7 +27,7 @@
 
   const settings = store.get('settings', { bet: 1, risk: 'medium', rows: 16 });
   let balance = store.get('balance', DEMO_BALANCE);
-  let mode = 'manual';
+  let mode = 'auto';
   let autoTimer = null;
   let autoCount = 0;
 
@@ -49,9 +51,10 @@
   });
   board.setup(settings.risk, settings.rows);
   renderBalance();
+  startMarquee();
 
   function renderBalance() {
-    els.balance.textContent = formatMoney(balance);
+    els.balanceValue.textContent = formatMoney(balance);
     store.set('balance', balance);
   }
 
@@ -86,6 +89,23 @@
     els.tabs.forEach((tab) => { tab.disabled = autoOn; });
     els.betBtn.classList.toggle('stop', autoOn);
     els.betBtn.textContent = mode === 'manual' ? t('bet') : t(autoOn ? 'stopAuto' : 'startAuto');
+    els.tapHint.classList.toggle('show', !autoOn);
+    els.tapHintText.textContent = t(mode === 'manual' ? 'tapToBet' : 'tapToAuto');
+  }
+
+  // Two identical copies scroll by half their width for a seamless loop. Every loop starts
+  // with the brand name, so reshuffling the cheers at the loop point never shows a jump.
+  function startMarquee() {
+    const sep = '　✦　';
+    const build = () => {
+      const cheers = t('marqueeCheers').slice().sort(() => Math.random() - 0.5);
+      const text = [t('marqueeBrand'), cheers[0], cheers[1], t('marqueeBrand'), cheers[2], cheers[3]].join(sep) + sep;
+      els.marquee.innerHTML = '';
+      for (let i = 0; i < 2; i++) els.marquee.appendChild(document.createElement('span')).textContent = text;
+      els.marquee.style.animationDuration = text.length * 0.32 + 's';
+    };
+    els.marquee.addEventListener('animationiteration', build);
+    build();
   }
 
   function placeBet() {
@@ -163,6 +183,12 @@
     syncLocks();
   }));
 
+  // Tapping the board works like the main button, but never stops a running auto play.
+  els.boardCard.addEventListener('click', () => {
+    if (autoTimer) return;
+    els.betBtn.click();
+  });
+
   els.betBtn.addEventListener('click', () => {
     Sound.unlock();
     if (mode === 'manual') placeBet();
@@ -182,8 +208,8 @@
     saveSettings();
   }));
 
-  els.refill.addEventListener('click', () => {
-    balance = DEMO_BALANCE;
+  els.balance.addEventListener('click', () => {
+    balance = Math.round((balance + DEMO_BALANCE) * 100) / 100;
     renderBalance();
     toast(t('refilled'));
   });

@@ -2,11 +2,16 @@
 // pick it with ?lang=xx (remembered in localStorage).
 const I18N = {
   'zh-TW': {
-    title: 'PLINKO 彈珠台',
+    title: '珠珠寶貝',
+    // Header marquee: the brand name plus cheers, shuffled each loop.
+    marqueeBrand: '珠珠寶貝',
+    marqueeCheers: ['祝你高倍', '重大獎', '加油加油', '好運連連', '大吉大利', '一球入魂', '財源滾滾', '倍數噴發', '旗開得勝', '手氣長紅'],
+    tapToBet: '輕點投注',
+    tapToAuto: '輕點開始',
     back: '返回大廳',
     balance: '餘額',
     demo: '示範',
-    refill: '補充示範餘額',
+    refill: '點擊加入示範金額',
     manual: '手動',
     auto: '自動',
     betAmount: '投注金額',
@@ -31,7 +36,7 @@ const I18N = {
     history: '最近結果',
     insufficient: '餘額不足',
     locked: '球落下中，暫時無法變更',
-    refilled: '已補充示範餘額',
+    refilled: '已加入示範金額',
     sound: '音效開關',
   },
 };
