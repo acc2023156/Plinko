@@ -11,9 +11,9 @@
     tabs: document.querySelectorAll('.tab'), controls: document.querySelector('.controls'),
   };
 
-  const DEMO_BALANCE = 1000;
   const HISTORY_SIZE = 6;
   const AUTO_INTERVAL = 280;
+  const platform = new ShaPlinkoApi();
 
   const store = {
     get(key, fallback) {
@@ -26,10 +26,12 @@
   };
 
   const settings = store.get('settings', { bet: 1, risk: 'medium', rows: 16 });
-  let balance = store.get('balance', DEMO_BALANCE);
+  let balance = 0;
   let mode = 'auto';
-  let autoTimer = null;
+  let autoRun = null;
   let autoCount = 0;
+  let platformReady = false;
+  let betInFlight = false;
 
   applyI18n();
   document.title = t('title');
@@ -55,7 +57,6 @@
 
   function renderBalance() {
     els.balanceValue.textContent = formatMoney(balance);
-    store.set('balance', balance);
   }
 
   function saveSettings() {
@@ -80,13 +81,14 @@
 
   // Risk and rows stay locked while balls are falling or auto play runs, like the reference game.
   function syncLocks() {
-    const busy = board.active > 0 || !!autoTimer;
+    const autoOn = !!autoRun;
+    const busy = board.active > 0 || betInFlight || autoOn;
     els.risk.disabled = busy;
     els.rows.disabled = busy;
-    const autoOn = !!autoTimer;
     els.betAmount.disabled = els.half.disabled = els.double.disabled = autoOn;
     els.numberOfBets.disabled = autoOn;
     els.tabs.forEach((tab) => { tab.disabled = autoOn; });
+    els.betBtn.disabled = !platformReady || (betInFlight && !autoOn);
     els.betBtn.classList.toggle('stop', autoOn);
     els.betBtn.textContent = mode === 'manual' ? t('bet') : t(autoOn ? 'stopAuto' : 'startAuto');
     els.tapHint.classList.toggle('show', !autoOn);
@@ -108,28 +110,48 @@
     build();
   }
 
-  function placeBet() {
+  async function placeBet() {
+    if (!platformReady || betInFlight || board.active > 0) return false;
     const bet = betValue();
     if (bet > balance) {
       toast(t('insufficient'));
       return false;
     }
-    balance = Math.round((balance - bet) * 100) / 100;
-    renderBalance();
-    board.drop(Plinko.play(els.risk.value, +els.rows.value), { bet });
-    Sound.drop();
+    betInFlight = true;
     syncLocks();
-    return true;
+    try {
+      const response = await platform.placeBet({ bet, amount: bet, risk: els.risk.value, rows: +els.rows.value });
+      const payout = platform.moneyValue(response.payout);
+      const finalBalance = platform.moneyValue(response.balance);
+      balance = finalBalance - payout;
+      renderBalance();
+      await new Promise((resolve) => {
+        board.drop(response.outcome, { bet, payout, finalBalance, resolve });
+        Sound.drop();
+      });
+      return true;
+    } catch (error) {
+      toast(error.message || '平台連線失敗');
+      try {
+        const session = await platform.openSession();
+        balance = platform.moneyValue(session.balance);
+        renderBalance();
+      } catch (_) { /* keep the last confirmed balance */ }
+      return false;
+    } finally {
+      betInFlight = false;
+      syncLocks();
+    }
   }
 
-  function onLand(result, { bet }) {
-    const payout = Math.round(bet * result.multiplier * 100) / 100;
-    balance = Math.round((balance + payout) * 100) / 100;
+  function onLand(result, { bet, payout, finalBalance, resolve }) {
+    balance = finalBalance;
     renderBalance();
     stats.add(bet, payout);
     pushHistory(result);
     celebrate(result);
     syncLocks();
+    resolve();
   }
 
   function celebrate(result) {
@@ -152,26 +174,28 @@
     while (els.history.children.length > HISTORY_SIZE) els.history.lastChild.remove();
   }
 
-  function startAuto() {
+  async function startAuto() {
     autoCount = Math.max(0, Math.floor(+els.numberOfBets.value || 0));
     let remaining = autoCount;
     const infinite = remaining === 0;
-    const step = () => {
-      if (!placeBet()) return stopAuto();
+    const run = { cancelled: false };
+    autoRun = run;
+    syncLocks();
+    while (!run.cancelled) {
+      if (!(await placeBet())) break;
       if (!infinite) {
         remaining--;
         els.numberOfBets.value = remaining;
-        if (remaining <= 0) stopAuto();
+        if (remaining <= 0) break;
       }
-    };
-    autoTimer = setInterval(step, AUTO_INTERVAL);
-    step();
-    syncLocks();
+      await new Promise((resolve) => setTimeout(resolve, AUTO_INTERVAL));
+    }
+    if (autoRun === run) stopAuto();
   }
 
   function stopAuto() {
-    clearInterval(autoTimer);
-    autoTimer = null;
+    if (autoRun) autoRun.cancelled = true;
+    autoRun = null;
     els.numberOfBets.value = autoCount;
     syncLocks();
   }
@@ -185,14 +209,14 @@
 
   // Tapping the board works like the main button, but never stops a running auto play.
   els.boardCard.addEventListener('click', () => {
-    if (autoTimer) return;
+    if (autoRun) return;
     els.betBtn.click();
   });
 
   els.betBtn.addEventListener('click', () => {
     Sound.unlock();
     if (mode === 'manual') placeBet();
-    else if (autoTimer) stopAuto();
+    else if (autoRun) stopAuto();
     else startAuto();
   });
 
@@ -208,11 +232,7 @@
     saveSettings();
   }));
 
-  els.balance.addEventListener('click', () => {
-    balance = Math.round((balance + DEMO_BALANCE) * 100) / 100;
-    renderBalance();
-    toast(t('refilled'));
-  });
+  els.balance.addEventListener('click', () => toast(`Player: ${platform.playerId}`));
 
   els.sound.addEventListener('click', () => { Sound.toggle(); Sound.unlock(); renderSound(); });
   renderSound();
@@ -225,5 +245,19 @@
     els.betBtn.click();
   });
 
+  async function connectPlatform() {
+    try {
+      const session = await platform.connect();
+      balance = platform.moneyValue(session.balance);
+      platformReady = true;
+      renderBalance();
+    } catch (error) {
+      toast(`${error.message || '平台連線失敗'}；本機測試請加 ?dev=1`);
+    } finally {
+      syncLocks();
+    }
+  }
+
   syncLocks();
+  connectPlatform();
 })();
