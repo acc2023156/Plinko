@@ -13,6 +13,8 @@
 
   const HISTORY_SIZE = 6;
   const AUTO_INTERVAL = 280;
+  const MAX_PENDING_BETS = 20;
+  const BOT_REFRESH_INTERVAL = 30000;
   const platform = new ShaPlinkoApi();
 
   const store = {
@@ -27,11 +29,14 @@
 
   const settings = store.get('settings', { bet: 1, risk: 'medium', rows: 16 });
   let balance = 0;
+  let displayBalance = 0;
   let mode = 'auto';
   let autoRun = null;
   let autoCount = 0;
   let platformReady = false;
   let betInFlight = false;
+  let pendingBets = 0;
+  let betQueue = Promise.resolve(true);
 
   applyI18n();
   document.title = t('title');
@@ -56,8 +61,10 @@
   startMarquee();
 
   function renderBalance() {
-    els.balanceValue.textContent = formatMoney(balance);
+    els.balanceValue.textContent = formatMoney(displayBalance);
   }
+
+  function roundMoney(value) { return Math.round(value * 1000) / 1000; }
 
   function saveSettings() {
     settings.bet = betValue();
@@ -82,13 +89,13 @@
   // Risk and rows stay locked while balls are falling or auto play runs, like the reference game.
   function syncLocks() {
     const autoOn = !!autoRun;
-    const busy = board.active > 0 || betInFlight || autoOn;
+    const busy = board.active > 0 || pendingBets > 0 || betInFlight || autoOn;
     els.risk.disabled = busy;
     els.rows.disabled = busy;
     els.betAmount.disabled = els.half.disabled = els.double.disabled = autoOn;
     els.numberOfBets.disabled = autoOn;
     els.tabs.forEach((tab) => { tab.disabled = autoOn; });
-    els.betBtn.disabled = !platformReady || (betInFlight && !autoOn);
+    els.betBtn.disabled = !platformReady;
     els.betBtn.classList.toggle('stop', autoOn);
     els.betBtn.textContent = mode === 'manual' ? t('bet') : t(autoOn ? 'stopAuto' : 'startAuto');
     els.tapHint.classList.toggle('show', !autoOn);
@@ -110,12 +117,27 @@
       catch (_) { render(); }
     };
     refresh();
-    setInterval(refresh, 8000);
+    setInterval(refresh, BOT_REFRESH_INTERVAL);
   }
 
-  async function placeBet() {
-    if (!platformReady || betInFlight || board.active > 0) return false;
-    const bet = betValue();
+  function queueBet() {
+    if (!platformReady) return Promise.resolve(false);
+    if (pendingBets >= MAX_PENDING_BETS) {
+      toast('投注處理中，請稍候');
+      return Promise.resolve(false);
+    }
+    const request = { bet: betValue(), risk: els.risk.value, rows: +els.rows.value };
+    pendingBets++;
+    syncLocks();
+    const queued = betQueue.then(() => placeBet(request));
+    betQueue = queued.catch(() => false).finally(() => {
+      pendingBets--;
+      syncLocks();
+    });
+    return queued;
+  }
+
+  async function placeBet({ bet, risk, rows }) {
     if (bet > balance) {
       toast(t('insufficient'));
       return false;
@@ -123,22 +145,24 @@
     betInFlight = true;
     syncLocks();
     try {
-      const response = await platform.placeBet({ amount: bet, risk: els.risk.value, rows: +els.rows.value });
+      const response = await platform.placeBet({ amount: bet, risk, rows });
       const payout = platform.moneyValue(response.payout);
       const finalBalance = platform.moneyValue(response.balance);
-      balance = finalBalance - payout;
+      balance = finalBalance;
+      displayBalance = roundMoney(displayBalance - bet);
       renderBalance();
-      await new Promise((resolve) => {
-        board.drop(response.outcome, { bet, payout, finalBalance, resolve });
-        Sound.drop();
-      });
+      board.drop(response.outcome, { bet, payout });
+      Sound.drop();
       return true;
     } catch (error) {
       toast(error.message || '平台連線失敗');
       try {
         const session = await platform.openSession();
         balance = platform.moneyValue(session.balance);
-        renderBalance();
+        if (board.active === 0) {
+          displayBalance = balance;
+          renderBalance();
+        }
       } catch (_) { /* keep the last confirmed balance */ }
       return false;
     } finally {
@@ -147,14 +171,13 @@
     }
   }
 
-  function onLand(result, { bet, payout, finalBalance, resolve }) {
-    balance = finalBalance;
+  function onLand(result, { bet, payout }) {
+    displayBalance = roundMoney(displayBalance + payout);
     renderBalance();
     stats.add(bet, payout);
     pushHistory(result);
     celebrate(result);
     syncLocks();
-    resolve();
   }
 
   function celebrate(result) {
@@ -185,7 +208,7 @@
     autoRun = run;
     syncLocks();
     while (!run.cancelled) {
-      if (!(await placeBet())) break;
+      if (!(await queueBet())) break;
       if (!infinite) {
         remaining--;
         els.numberOfBets.value = remaining;
@@ -218,7 +241,7 @@
 
   els.betBtn.addEventListener('click', () => {
     Sound.unlock();
-    if (mode === 'manual') placeBet();
+    if (mode === 'manual') queueBet();
     else if (autoRun) stopAuto();
     else startAuto();
   });
@@ -252,6 +275,7 @@
     try {
       const session = await platform.connect();
       balance = platform.moneyValue(session.balance);
+      displayBalance = balance;
       platformReady = true;
       renderBalance();
     } catch (error) {
