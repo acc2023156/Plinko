@@ -2,9 +2,15 @@
 class ShaPlinkoApi {
   constructor() {
     const query = new URLSearchParams(location.search);
+    const fragment = new URLSearchParams(location.hash.slice(1));
     this.baseUrl = (query.get('api') || localStorage.getItem('plinko.api') || 'http://localhost:3000/api/v1').replace(/\/$/, '');
     localStorage.setItem('plinko.api', this.baseUrl);
     this.playerId = localStorage.getItem('plinko.playerId') || `demo-${crypto.randomUUID()}`;
+    this.launchToken = fragment.get('token') || sessionStorage.getItem('plinko.launchToken');
+    if (this.launchToken) {
+      sessionStorage.setItem('plinko.launchToken', this.launchToken);
+      if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    }
     this.clientSeed = localStorage.getItem('plinko.clientSeed') || crypto.randomUUID();
     localStorage.setItem('plinko.playerId', this.playerId);
     localStorage.setItem('plinko.clientSeed', this.clientSeed);
@@ -53,9 +59,12 @@ class ShaPlinkoApi {
   }
 
   async request(path, options) {
+    const identity = this.launchToken
+      ? { authorization: `Bearer ${this.launchToken}` }
+      : { 'x-player-id': this.playerId };
     const response = await fetch(this.baseUrl + path, {
       ...options,
-      headers: { 'content-type': 'application/json', 'x-player-id': this.playerId, ...(options.headers || {}) },
+      headers: { 'content-type': 'application/json', ...identity, ...(options.headers || {}) },
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
