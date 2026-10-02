@@ -95,19 +95,22 @@
     els.tapHintText.textContent = t(mode === 'manual' ? 'tapToBet' : 'tapToAuto');
   }
 
-  // Two identical copies scroll by half their width for a seamless loop. Every loop starts
-  // with the brand name, so reshuffling the cheers at the loop point never shows a jump.
+  // Activity shown here comes from the platform. The browser does not create bot activity.
   function startMarquee() {
     const sep = '　✦　';
-    const build = () => {
-      const cheers = t('marqueeCheers').slice().sort(() => Math.random() - 0.5);
-      const text = [t('marqueeBrand'), cheers[0], cheers[1], t('marqueeBrand'), cheers[2], cheers[3]].join(sep) + sep;
+    const render = (events = []) => {
+      const activity = events.map((event) => `${event.display_name} 投注 ${platform.moneyValue(event.wager).toFixed(2)}`);
+      const text = [t('marqueeBrand'), ...activity].join(sep) + sep;
       els.marquee.innerHTML = '';
       for (let i = 0; i < 2; i++) els.marquee.appendChild(document.createElement('span')).textContent = text;
       els.marquee.style.animationDuration = text.length * 0.32 + 's';
     };
-    els.marquee.addEventListener('animationiteration', build);
-    build();
+    const refresh = async () => {
+      try { render((await platform.roomSnapshot()).bot_events); }
+      catch (_) { render(); }
+    };
+    refresh();
+    setInterval(refresh, 8000);
   }
 
   async function placeBet() {
@@ -120,7 +123,7 @@
     betInFlight = true;
     syncLocks();
     try {
-      const response = await platform.placeBet({ bet, amount: bet, risk: els.risk.value, rows: +els.rows.value });
+      const response = await platform.placeBet({ amount: bet, risk: els.risk.value, rows: +els.rows.value });
       const payout = platform.moneyValue(response.payout);
       const finalBalance = platform.moneyValue(response.balance);
       balance = finalBalance - payout;

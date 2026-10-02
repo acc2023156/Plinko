@@ -1,4 +1,4 @@
-// Plinko game rules: payout tables and outcome generation (no DOM).
+// Plinko presentation helpers. Authoritative outcome generation only exists in SHA-Platform.
 const Plinko = (() => {
   // Left half of each payout table, edge to center. The right half mirrors it.
   const HALF = {
@@ -46,15 +46,6 @@ const Plinko = (() => {
     return half.concat(tail.reverse());
   }
 
-  // Each peg sends the ball left (0) or right (1) with equal odds; the slot is the count of rights.
-  function play(risk, rows) {
-    const bits = new Uint32Array(rows);
-    crypto.getRandomValues(bits);
-    const path = Array.from(bits, (v) => v & 1);
-    const slot = path.reduce((a, b) => a + b, 0);
-    return { risk, rows, path, slot, multiplier: multipliers(risk, rows)[slot] };
-  }
-
   function label(m) {
     if (m >= 1000) return m / 1000 + 'K';
     if (m >= 100) return String(m);
@@ -69,5 +60,5 @@ const Plinko = (() => {
     return `rgb(${c[0]},${c[1]},${c[2]})`;
   }
 
-  return { RISKS, ROWS, multipliers, play, label, slotColor };
+  return { RISKS, ROWS, multipliers, label, slotColor };
 })();

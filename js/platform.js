@@ -3,7 +3,11 @@ class ShaPlinkoApi {
   constructor() {
     const query = new URLSearchParams(location.search);
     const fragment = new URLSearchParams(location.hash.slice(1));
-    this.baseUrl = (query.get('api') || localStorage.getItem('plinko.api') || 'http://localhost:3000/api/v1').replace(/\/$/, '');
+    const cloudflareDevelopmentApi = 'https://sha-platform-dev.sha-platform.workers.dev/api/v1';
+    const storedApi = localStorage.getItem('plinko.api');
+    const migratedApi = storedApi === 'http://localhost:3000/api/v1' ? null : storedApi;
+    this.baseUrl = (query.get('api') || migratedApi || cloudflareDevelopmentApi).replace(/\/$/, '');
+    this.developmentMode = query.get('dev') === '1' || this.baseUrl === cloudflareDevelopmentApi;
     localStorage.setItem('plinko.api', this.baseUrl);
     this.playerId = localStorage.getItem('plinko.playerId') || `demo-${crypto.randomUUID()}`;
     this.launchToken = fragment.get('token') || sessionStorage.getItem('plinko.launchToken');
@@ -21,8 +25,7 @@ class ShaPlinkoApi {
     try {
       return await this.openSession();
     } catch (error) {
-      const query = new URLSearchParams(location.search);
-      if (error.status !== 404 || query.get('dev') !== '1') throw error;
+      if (error.status !== 404 || !this.developmentMode) throw error;
       await this.request(`/dev/players/${encodeURIComponent(this.playerId)}/bootstrap`, {
         method: 'POST',
         body: JSON.stringify({ initial_units: '1000000' }),
@@ -52,6 +55,10 @@ class ShaPlinkoApi {
     });
     this.commitment = response.next_commitment;
     return response;
+  }
+
+  roomSnapshot() {
+    return this.request('/rooms/plinko/snapshot', { method: 'GET' });
   }
 
   moneyValue(money) {

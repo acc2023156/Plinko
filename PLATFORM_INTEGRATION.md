@@ -12,7 +12,17 @@ http://localhost:8080/?api=http://localhost:3000/api/v1&dev=1
 
 `dev=1` allows the client to call the development wallet bootstrap route when the player has no wallet. The backend must have `ALLOW_DEV_BOOTSTRAP=true`. Never enable this route in production.
 
-The browser keeps only a demo player identifier, client seed and UI preferences in localStorage. Balance, commitment rotation, outcome, multiplier and payout come from SHA-Platform.
+## Cloudflare development URL
+
+This branch defaults to the SHA development Worker, so a fresh browser can open the page directly. The Worker provisions a development wallet on first use:
+
+```text
+https://acc2023156.github.io/Plinko/
+```
+
+The current development API is `https://sha-platform-dev.sha-platform.workers.dev/api/v1`.
+
+The browser keeps only a demo player identifier, client seed and UI preferences in localStorage. Balance, commitment rotation, outcome, multiplier, payout and room bot activity come from SHA-Platform. Visual animation jitter is non-authoritative and cannot change the returned slot or payout.
 
 Production requires a short-lived launch token. Pass it in the URL fragment so it is not sent to GitHub Pages or intermediary access logs. The adapter moves it into sessionStorage and removes the fragment from the address bar:
 
