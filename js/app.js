@@ -16,9 +16,6 @@
   const MAX_PENDING_BETS = 20;
   const BOT_REFRESH_INTERVAL = 30000;
   const platform = new ShaPlinkoApi();
-  // 從大廳帶 launch token 進來時使用 GDBO 錢包：金額為整數金幣
-  const wholeCoins = Boolean(platform.launchToken);
-  const fmtBet = (value) => (wholeCoins ? String(value) : value.toFixed(2));
 
   const store = {
     get(key, fallback) {
@@ -51,8 +48,7 @@
   Plinko.ROWS.forEach((r) => els.rows.add(new Option(r, r)));
   els.rows.value = settings.rows;
   els.risk.value = settings.risk;
-  if (wholeCoins) { els.betAmount.step = '1'; els.betAmount.min = '1'; els.betAmount.inputMode = 'numeric'; }
-  els.betAmount.value = fmtBet(wholeCoins ? Math.max(1, Math.floor(settings.bet)) : settings.bet);
+  els.betAmount.value = settings.bet.toFixed(2);
 
   const board = new Board($('board'), onLand, () => Sound.peg());
   const confetti = new Confetti();
@@ -79,7 +75,7 @@
 
   function betValue() {
     const v = Math.max(0, parseFloat(els.betAmount.value) || 0);
-    return wholeCoins ? Math.floor(v) : Math.round(v * 100) / 100;
+    return Math.round(v * 100) / 100;
   }
 
   let toastTimer;
@@ -250,15 +246,12 @@
     else startAuto();
   });
 
-  els.half.addEventListener('click', () => {
-    els.betAmount.value = fmtBet(wholeCoins ? Math.max(1, Math.floor(betValue() / 2)) : betValue() / 2);
-    saveSettings();
-  });
+  els.half.addEventListener('click', () => { els.betAmount.value = (betValue() / 2).toFixed(2); saveSettings(); });
   els.double.addEventListener('click', () => {
-    els.betAmount.value = fmtBet(Math.min(wholeCoins ? Math.floor(balance) : balance, betValue() * 2 || (wholeCoins ? 1 : 0.01)));
+    els.betAmount.value = Math.min(balance, betValue() * 2 || 0.01).toFixed(2);
     saveSettings();
   });
-  els.betAmount.addEventListener('change', () => { els.betAmount.value = fmtBet(betValue()); saveSettings(); });
+  els.betAmount.addEventListener('change', () => { els.betAmount.value = betValue().toFixed(2); saveSettings(); });
 
   [els.risk, els.rows].forEach((sel) => sel.addEventListener('change', () => {
     board.setup(els.risk.value, +els.rows.value);
