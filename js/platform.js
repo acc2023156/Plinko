@@ -65,6 +65,16 @@ class ShaPlinkoApi {
     return Number(money.units) / (10 ** money.scale);
   }
 
+  verificationUrl(round) {
+    const token = round?.fairness?.proof_token;
+    if (!round?.round_id || !token) return null;
+    const url = new URL('https://sha-fairness-dev.pages.dev/');
+    url.searchParams.set('game_id', 'plinko');
+    url.searchParams.set('round_id', round.round_id);
+    url.searchParams.set('token', token);
+    return url.href;
+  }
+
   async request(path, options) {
     const identity = this.launchToken
       ? { authorization: `Bearer ${this.launchToken}` }

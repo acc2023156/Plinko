@@ -7,7 +7,7 @@
     marquee: $('marquee'),
     betAmount: $('betAmount'), half: $('half'), double: $('double'),
     risk: $('risk'), rows: $('rows'), numberOfBets: $('numberOfBets'),
-    betBtn: $('betBtn'), history: $('history'), toast: $('toast'),
+    betBtn: $('betBtn'), history: $('history'), toast: $('toast'), verifyRound: $('verifyRound'),
     tabs: document.querySelectorAll('.tab'), controls: document.querySelector('.controls'),
   };
 
@@ -37,6 +37,7 @@
   let betInFlight = false;
   let pendingBets = 0;
   let betQueue = Promise.resolve(true);
+  let verificationUrl = null;
 
   applyI18n();
   document.title = t('title');
@@ -146,6 +147,8 @@
     syncLocks();
     try {
       const response = await platform.placeBet({ amount: bet, risk, rows });
+      verificationUrl = platform.verificationUrl(response);
+      els.verifyRound.disabled = !verificationUrl;
       const payout = platform.moneyValue(response.payout);
       const finalBalance = platform.moneyValue(response.balance);
       balance = finalBalance;
@@ -264,6 +267,9 @@
   renderSound();
 
   $('resetStats').addEventListener('click', () => stats.reset());
+  els.verifyRound.addEventListener('click', () => {
+    if (verificationUrl) window.open(verificationUrl, '_blank', 'noopener');
+  });
 
   document.addEventListener('keydown', (e) => {
     if (e.code !== 'Space' || /INPUT|SELECT|BUTTON/.test(e.target.tagName)) return;
