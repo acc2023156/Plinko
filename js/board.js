@@ -56,21 +56,37 @@ class Board {
 
   // Waypoints: drop point, the contact on one peg per row, then the slot.
   drop(result, payload) {
-    const pts = [[(Math.random() - 0.5) * 0.3, -1.1]];
-    let rights = 0;
-    result.path.forEach((dir, row) => {
-      const pegX = rights - row / 2;
-      const side = dir ? 1 : -1;
-      pts.push([pegX + side * 0.12 + (Math.random() - 0.5) * 0.06, row - 0.33, row, rights + 1]);
-      rights += dir;
-    });
-    pts.push([result.slot - this.rows / 2, this.rows - 1 + 0.55]);
-    this.balls.push({ result, payload, pts, seg: 0, segStart: performance.now() });
+    this.release().fall(result, payload);
+  }
+
+  // 按下就先放一顆球停在頂端；結果回來再呼叫 fall 沿路徑落下，投注失敗則 cancel 收回。
+  release() {
+    const ball = { pending: true, pts: [[(Math.random() - 0.5) * 0.3, -1.1]], seg: 0, segStart: performance.now() };
+    this.balls.push(ball);
+    return {
+      fall: (result, payload) => {
+        const pts = [ball.pts[0]];
+        let rights = 0;
+        result.path.forEach((dir, row) => {
+          const pegX = rights - row / 2;
+          const side = dir ? 1 : -1;
+          pts.push([pegX + side * 0.12 + (Math.random() - 0.5) * 0.06, row - 0.33, row, rights + 1]);
+          rights += dir;
+        });
+        pts.push([result.slot - this.rows / 2, this.rows - 1 + 0.55]);
+        Object.assign(ball, { pending: false, result, payload, pts, seg: 0, segStart: performance.now() });
+      },
+      cancel: () => {
+        const i = this.balls.indexOf(ball);
+        if (i >= 0) this.balls.splice(i, 1);
+      },
+    };
   }
 
   tick(now) {
     for (let i = this.balls.length - 1; i >= 0; i--) {
       const b = this.balls[i];
+      if (b.pending) continue;
       const dur = b.seg === 0 ? 260 : 150;
       while (now - b.segStart >= dur && b.seg < b.pts.length - 1) {
         b.segStart += dur;
@@ -94,6 +110,7 @@ class Board {
   }
 
   ballPos(b) {
+    if (b.pending) return b.pts[0];
     const [x0, y0] = b.pts[b.seg];
     const [x1, y1] = b.pts[b.seg + 1];
     const t = b.t || 0;
