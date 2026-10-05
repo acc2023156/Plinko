@@ -39,6 +39,7 @@
   let pendingBets = 0;
   let betQueue = Promise.resolve(true);
   let verificationUrl = null;
+  let betMessage = '';
 
   applyI18n();
   document.title = t('title');
@@ -97,9 +98,11 @@
     els.betAmount.disabled = els.half.disabled = els.double.disabled = autoOn;
     els.numberOfBets.disabled = autoOn;
     els.tabs.forEach((tab) => { tab.disabled = autoOn; });
-    els.betBtn.disabled = !platformReady;
+    els.betBtn.disabled = !platformReady || betInFlight || pendingBets > 0;
     els.betBtn.classList.toggle('stop', autoOn);
-    els.betBtn.textContent = mode === 'manual' ? t('bet') : t(autoOn ? 'stopAuto' : 'startAuto');
+    els.betBtn.textContent = !platformReady
+      ? '連線中…'
+      : betMessage || (mode === 'manual' ? t('bet') : t(autoOn ? 'stopAuto' : 'startAuto'));
     els.tapHint.classList.toggle('show', !autoOn);
     els.tapHintText.textContent = t(mode === 'manual' ? 'tapToBet' : 'tapToAuto');
   }
@@ -145,6 +148,7 @@
       return false;
     }
     betInFlight = true;
+    betMessage = '投注確認中，請稍候…';
     syncLocks();
     try {
       const response = await platform.placeBet({ amount: bet, risk, rows });
@@ -171,6 +175,7 @@
       return false;
     } finally {
       betInFlight = false;
+      betMessage = '';
       syncLocks();
     }
   }
@@ -181,7 +186,6 @@
       return 0;
     }
     betInFlight = true;
-    syncLocks();
     try {
       const bet = betValue();
       const affordable = Math.floor(balance / bet);
@@ -190,12 +194,16 @@
         toast(t('insufficient'));
         return 0;
       }
+      betMessage = `正在向錢包確認 ${requested} 局…`;
+      syncLocks();
       const response = await platform.placeBetBatch({
         amount: bet, risk: els.risk.value, rows: +els.rows.value, count: requested,
       });
       if (!response.bets.length) throw new Error(response.error?.message || '批次投注失敗');
       balance = platform.moneyValue(response.bets[response.bets.length - 1].balance);
-      for (const result of response.bets) {
+      for (const [index, result] of response.bets.entries()) {
+        betMessage = `第 ${index + 1}／${response.bets.length} 顆落球中`;
+        syncLocks();
         verificationUrl = platform.verificationUrl(result);
         els.verifyRound.disabled = !verificationUrl;
         displayBalance = roundMoney(displayBalance - bet);
@@ -219,6 +227,7 @@
       return 0;
     } finally {
       betInFlight = false;
+      betMessage = '';
       syncLocks();
     }
   }
