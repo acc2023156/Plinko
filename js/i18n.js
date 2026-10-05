@@ -69,5 +69,6 @@ function applyI18n(root = document) {
 }
 
 function formatMoney(n) {
-  return n.toLocaleString(lang, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // 兩位小數、無條件捨去（與大廳、GDBO 一致）
+  return (Math.trunc(Math.round(n * 1000) / 10) / 100 || 0).toLocaleString(lang, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
