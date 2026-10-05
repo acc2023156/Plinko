@@ -1,5 +1,8 @@
 // Canvas peg board. Positions are kept in "grid units" (1 unit = peg spacing),
 // measured from the top peg row's center, so a resize never disturbs balls in flight.
+const PENDING_FALL_MS = 260;
+const PENDING_HOP_MS = 300;
+
 class Board {
   constructor(canvas, onLand, onPeg) {
     this.canvas = canvas;
@@ -59,13 +62,16 @@ class Board {
     this.release().fall(result, payload);
   }
 
-  // 按下就先放一顆球停在頂端；結果回來再呼叫 fall 沿路徑落下，投注失敗則 cancel 收回。
+  // 按下就放球：先落到第一根釘子上輕彈，等伺服器結果回來再從當下位置沿路徑落下；投注失敗則 cancel 收回。
   release() {
-    const ball = { pending: true, pts: [[(Math.random() - 0.5) * 0.3, -1.1]], seg: 0, segStart: performance.now() };
+    const ball = { pending: true, born: performance.now(), pts: [[(Math.random() - 0.5) * 0.3, -1.1]], seg: 0, segStart: 0 };
     this.balls.push(ball);
     return {
       fall: (result, payload) => {
-        const pts = [ball.pts[0]];
+        const now = performance.now();
+        const pts = [this.pendingPos(ball, now)];
+        // 還在第一段下落中就接著落完剩下的時間；已經在釘子上彈跳就短短一段接到第一個接觸點
+        ball.firstDur = Math.max(120, PENDING_FALL_MS - (now - ball.born));
         let rights = 0;
         result.path.forEach((dir, row) => {
           const pegX = rights - row / 2;
@@ -83,11 +89,26 @@ class Board {
     };
   }
 
+  // 等待結果時的位置：受重力落到第一根釘子上方，之後在釘子上越彈越低
+  pendingPos(b, now) {
+    const [x0, y0] = b.pts[0];
+    const elapsed = now - b.born;
+    const xEnd = x0 * 0.3, yEnd = -0.38;
+    if (elapsed < PENDING_FALL_MS) {
+      const t = elapsed / PENDING_FALL_MS;
+      return [x0 + (xEnd - x0) * t, y0 + (yEnd - y0) * t * t];
+    }
+    const k = (elapsed - PENDING_FALL_MS) / PENDING_HOP_MS;
+    const height = Math.max(0.05, 0.2 * Math.pow(0.7, Math.floor(k)));
+    const phase = k - Math.floor(k);
+    return [xEnd, yEnd - height * 4 * phase * (1 - phase)];
+  }
+
   tick(now) {
     for (let i = this.balls.length - 1; i >= 0; i--) {
       const b = this.balls[i];
       if (b.pending) continue;
-      const dur = b.seg === 0 ? 260 : 150;
+      const dur = b.seg === 0 ? b.firstDur || PENDING_FALL_MS : 150;
       while (now - b.segStart >= dur && b.seg < b.pts.length - 1) {
         b.segStart += dur;
         b.seg++;
@@ -109,8 +130,8 @@ class Board {
     requestAnimationFrame(this.tick);
   }
 
-  ballPos(b) {
-    if (b.pending) return b.pts[0];
+  ballPos(b, now) {
+    if (b.pending) return this.pendingPos(b, now);
     const [x0, y0] = b.pts[b.seg];
     const [x1, y1] = b.pts[b.seg + 1];
     const t = b.t || 0;
@@ -161,7 +182,7 @@ class Board {
 
     const ballR = gap * 0.22;
     for (const b of this.balls) {
-      const [x, y] = this.toPx(...this.ballPos(b));
+      const [x, y] = this.toPx(...this.ballPos(b, now));
       const g = ctx.createRadialGradient(x - ballR * 0.35, y - ballR * 0.35, ballR * 0.1, x, y, ballR);
       g.addColorStop(0, '#ff8a7a');
       g.addColorStop(1, '#d4141c');

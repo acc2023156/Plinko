@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20260929b">
+  <link rel="stylesheet" href="css/style.css?v=20261006b">
 </head>
 <body>
   <header class="topbar">
@@ -66,10 +66,14 @@
         </label>
       </div>
 
-      <label class="field auto-only">
-        <span class="field-label"><span data-i18n="numberOfBets">投注次數</span><small data-i18n="infiniteHint">0 為無限次</small></span>
-        <input id="numberOfBets" type="number" inputmode="numeric" min="0" step="10" value="10">
-      </label>
+      <div class="field auto-only">
+        <span class="field-label"><span data-i18n="numberOfBets">投注次數</span><output id="numberOfBetsOut" class="count-out">10</output></span>
+        <div class="count-row">
+          <button type="button" class="chip" id="countDown" aria-label="減少 10 顆">◀</button>
+          <input id="numberOfBets" type="range" min="10" max="100" step="10" value="10" aria-label="投注次數">
+          <button type="button" class="chip" id="countUp" aria-label="增加 10 顆">▶</button>
+        </div>
+      </div>
 
       <button type="button" class="bet-btn" id="betBtn" data-i18n="bet">投注</button>
     </section>
@@ -95,9 +99,9 @@
   <script src="js/i18n.js?v=20261005a"></script>
   <script src="js/engine.js?v=20260929b"></script>
   <script src="js/fx.js?v=20260929b"></script>
-  <script src="js/board.js?v=20261006a"></script>
+  <script src="js/board.js?v=20261006b"></script>
   <script src="js/stats.js?v=20260929b"></script>
   <script src="js/platform.js?v=20261005a"></script>
-  <script src="js/app.js?v=20261006a"></script>
+  <script src="js/app.js?v=20261006b"></script>
 </body>
 </html>
