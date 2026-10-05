@@ -13,6 +13,7 @@
 
   const HISTORY_SIZE = 6;
   const AUTO_INTERVAL = 280;
+  const AUTO_BATCH_SIZE = 10;
   const MAX_PENDING_BETS = 20;
   const BOT_REFRESH_INTERVAL = 30000;
   const platform = new ShaPlinkoApi();
@@ -174,6 +175,54 @@
     }
   }
 
+  async function placeAutoBatch(count) {
+    if (betValue() > balance) {
+      toast(t('insufficient'));
+      return 0;
+    }
+    betInFlight = true;
+    syncLocks();
+    try {
+      const bet = betValue();
+      const affordable = Math.floor(balance / bet);
+      const requested = Math.min(count, AUTO_BATCH_SIZE, affordable);
+      if (requested < 1) {
+        toast(t('insufficient'));
+        return 0;
+      }
+      const response = await platform.placeBetBatch({
+        amount: bet, risk: els.risk.value, rows: +els.rows.value, count: requested,
+      });
+      if (!response.bets.length) throw new Error(response.error?.message || '批次投注失敗');
+      balance = platform.moneyValue(response.bets[response.bets.length - 1].balance);
+      for (const result of response.bets) {
+        verificationUrl = platform.verificationUrl(result);
+        els.verifyRound.disabled = !verificationUrl;
+        displayBalance = roundMoney(displayBalance - bet);
+        renderBalance();
+        board.drop(result.outcome, { bet, payout: platform.moneyValue(result.payout) });
+        Sound.drop();
+        await new Promise((resolve) => setTimeout(resolve, AUTO_INTERVAL));
+      }
+      if (response.error) toast(response.error.message || '部分投注未完成');
+      return response.bets.length;
+    } catch (error) {
+      toast(error.message || '平台連線失敗');
+      try {
+        const session = await platform.openSession();
+        balance = platform.moneyValue(session.balance);
+        if (board.active === 0) {
+          displayBalance = balance;
+          renderBalance();
+        }
+      } catch (_) { /* keep the last confirmed balance */ }
+      return 0;
+    } finally {
+      betInFlight = false;
+      syncLocks();
+    }
+  }
+
   function onLand(result, { bet, payout }) {
     displayBalance = roundMoney(displayBalance + payout);
     renderBalance();
@@ -211,13 +260,14 @@
     autoRun = run;
     syncLocks();
     while (!run.cancelled) {
-      if (!(await queueBet())) break;
+      const batchSize = infinite ? AUTO_BATCH_SIZE : Math.min(remaining, AUTO_BATCH_SIZE);
+      const completed = await placeAutoBatch(batchSize);
+      if (!completed) break;
       if (!infinite) {
-        remaining--;
+        remaining -= completed;
         els.numberOfBets.value = remaining;
         if (remaining <= 0) break;
       }
-      await new Promise((resolve) => setTimeout(resolve, AUTO_INTERVAL));
     }
     if (autoRun === run) stopAuto();
   }

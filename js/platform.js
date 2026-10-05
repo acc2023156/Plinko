@@ -57,6 +57,25 @@ class ShaPlinkoApi {
     return response;
   }
 
+  async placeBetBatch({ amount, risk, rows, count }) {
+    if (!this.commitment) throw new Error('平台連線尚未完成');
+    const response = await this.request('/games/plinko/bets/batch', {
+      method: 'POST',
+      body: JSON.stringify({
+        request_ids: Array.from({ length: count }, () => crypto.randomUUID()),
+        commitment_id: this.commitment.id,
+        client_seed: this.clientSeed,
+        wager: { units: String(Math.round(amount * 1000)), currency: 'TWD', scale: 3 },
+        risk,
+        rows,
+      }),
+    });
+    const bets = Array.isArray(response.bets) ? response.bets : [];
+    const last = bets[bets.length - 1];
+    if (last?.next_commitment) this.commitment = last.next_commitment;
+    return { ...response, bets };
+  }
+
   roomSnapshot() {
     return this.request('/rooms/plinko/snapshot', { method: 'GET' });
   }
