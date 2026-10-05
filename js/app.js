@@ -98,10 +98,12 @@
     els.betAmount.disabled = els.half.disabled = els.double.disabled = autoOn;
     els.numberOfBets.disabled = autoOn;
     els.tabs.forEach((tab) => { tab.disabled = autoOn; });
-    els.betBtn.disabled = !platformReady || betInFlight || pendingBets > 0;
+    // Auto play keeps the stop button live while batches are in flight; once stopping, wait for the last batch.
+    els.betBtn.disabled = !platformReady || (autoOn ? autoRun.cancelled : betInFlight || pendingBets > 0);
     els.betBtn.classList.toggle('stop', autoOn);
     els.betBtn.textContent = !platformReady
       ? '連線中…'
+      : autoOn && autoRun.cancelled ? '停止中…'
       : betMessage || (mode === 'manual' ? t('bet') : t(autoOn ? 'stopAuto' : 'startAuto'));
     els.tapHint.classList.toggle('show', !autoOn);
     els.tapHintText.textContent = t(mode === 'manual' ? 'tapToBet' : 'tapToAuto');
@@ -180,42 +182,17 @@
     }
   }
 
-  async function placeAutoBatch(count) {
-    if (betValue() > balance) {
-      toast(t('insufficient'));
-      return 0;
-    }
+  // One wallet call settles a whole batch of 10 balls. Resolves to the confirmed bets, or null on failure.
+  async function requestAutoBatch(request) {
     betInFlight = true;
+    syncLocks();
     try {
-      const bet = betValue();
-      const affordable = Math.floor(balance / bet);
-      const requested = Math.min(count, AUTO_BATCH_SIZE, affordable);
-      if (requested < 1) {
-        toast(t('insufficient'));
-        return 0;
-      }
-      betMessage = `正在向錢包確認 ${requested} 局…`;
-      syncLocks();
-      const response = await platform.placeBetBatch({
-        amount: bet, risk: els.risk.value, rows: +els.rows.value, count: requested,
-      });
+      const response = await platform.placeBetBatch({ ...request, count: AUTO_BATCH_SIZE });
       if (!response.bets.length) throw new Error(response.error?.message || '批次投注失敗');
       balance = platform.moneyValue(response.bets[response.bets.length - 1].balance);
-      for (const [index, result] of response.bets.entries()) {
-        betMessage = `第 ${index + 1}／${response.bets.length} 顆落球中`;
-        syncLocks();
-        verificationUrl = platform.verificationUrl(result);
-        els.verifyRound.disabled = !verificationUrl;
-        displayBalance = roundMoney(displayBalance - bet);
-        renderBalance();
-        board.drop(result.outcome, { bet, payout: platform.moneyValue(result.payout) });
-        Sound.drop();
-        await new Promise((resolve) => setTimeout(resolve, AUTO_INTERVAL));
-      }
-      if (response.error) toast(response.error.message || '部分投注未完成');
-      return response.bets.length;
+      return response;
     } catch (error) {
-      toast(error.message || '平台連線失敗');
+      toast(error.code === 'INSUFFICIENT_FUNDS' ? t('insufficient') : error.message || '平台連線失敗');
       try {
         const session = await platform.openSession();
         balance = platform.moneyValue(session.balance);
@@ -224,12 +201,30 @@
           renderBalance();
         }
       } catch (_) { /* keep the last confirmed balance */ }
-      return 0;
+      return null;
     } finally {
       betInFlight = false;
-      betMessage = '';
       syncLocks();
     }
+  }
+
+  // Balls are dropped only after the server has confirmed them.
+  async function animateBatch(bets, bet) {
+    for (const result of bets) {
+      verificationUrl = platform.verificationUrl(result);
+      els.verifyRound.disabled = !verificationUrl;
+      displayBalance = roundMoney(displayBalance - bet);
+      renderBalance();
+      board.drop(result.outcome, { bet, payout: platform.moneyValue(result.payout) });
+      Sound.drop();
+      await new Promise((resolve) => setTimeout(resolve, AUTO_INTERVAL));
+    }
+  }
+
+  /** 投注次數以 10 為單位（0 = 無限次）。 */
+  function autoCountValue() {
+    const v = Math.max(0, Math.floor(+els.numberOfBets.value || 0));
+    return Math.ceil(v / AUTO_BATCH_SIZE) * AUTO_BATCH_SIZE;
   }
 
   function onLand(result, { bet, payout }) {
@@ -261,32 +256,53 @@
     while (els.history.children.length > HISTORY_SIZE) els.history.lastChild.remove();
   }
 
+  // While batch N animates, batch N+1 is already being settled so play never pauses between batches.
+  // Stopping cancels further requests; a batch already in flight still completes and is animated.
   async function startAuto() {
-    autoCount = Math.max(0, Math.floor(+els.numberOfBets.value || 0));
+    autoCount = autoCountValue();
+    els.numberOfBets.value = autoCount;
+    const request = { amount: betValue(), risk: els.risk.value, rows: +els.rows.value };
+    if (request.amount <= 0) return;
+    if (request.amount > balance) {
+      toast(t('insufficient'));
+      return;
+    }
     let remaining = autoCount;
     const infinite = remaining === 0;
     const run = { cancelled: false };
     autoRun = run;
     syncLocks();
-    while (!run.cancelled) {
-      const batchSize = infinite ? AUTO_BATCH_SIZE : Math.min(remaining, AUTO_BATCH_SIZE);
-      const completed = await placeAutoBatch(batchSize);
-      if (!completed) break;
+    let next = requestAutoBatch(request);
+    while (next) {
+      const response = await next;
+      next = null;
+      if (!response) break;
+      const left = remaining - response.bets.length;
+      if (!run.cancelled && !response.error && (infinite || left > 0) && balance >= request.amount) {
+        next = requestAutoBatch(request);
+      }
+      await animateBatch(response.bets, request.amount);
       if (!infinite) {
-        remaining -= completed;
+        remaining = Math.max(0, left);
         els.numberOfBets.value = remaining;
-        if (remaining <= 0) break;
+      }
+      if (response.error) {
+        toast(response.error.code === 'INSUFFICIENT_FUNDS' ? t('insufficient') : response.error.message || '部分投注未完成');
+      } else if (!next && !run.cancelled && (infinite || remaining > 0)) {
+        toast(t('insufficient'));
       }
     }
-    if (autoRun === run) stopAuto();
-  }
-
-  function stopAuto() {
-    if (autoRun) autoRun.cancelled = true;
     autoRun = null;
     els.numberOfBets.value = autoCount;
     syncLocks();
   }
+
+  function stopAuto() {
+    if (autoRun) autoRun.cancelled = true;
+    syncLocks();
+  }
+
+  els.numberOfBets.addEventListener('change', () => { els.numberOfBets.value = autoCountValue(); });
 
   els.tabs.forEach((tab) => tab.addEventListener('click', () => {
     mode = tab.dataset.mode;
