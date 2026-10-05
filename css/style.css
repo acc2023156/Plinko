@@ -320,6 +320,12 @@ input:focus, select:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba
 .controls { display: flex; flex-direction: column; }
 .bet-btn { order: -1; margin: 0 0 14px; }
 
+/* 自動投注次數：10–100 顆，滑桿或左右箭頭選 */
+.count-row { display: grid; grid-template-columns: 48px 1fr 48px; gap: 6px; align-items: center; }
+.count-row .chip { height: 42px; }
+.count-row input[type=range] { height: 42px; padding: 0; border: 0; background: none; box-shadow: none; accent-color: var(--red); }
+.count-out { color: var(--red); font-size: 15px; font-weight: 900; }
+
 .auto-only { display: none; }
 .controls.is-auto .auto-only { display: block; }
 
