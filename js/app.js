@@ -136,7 +136,12 @@
     const request = { bet: betValue(), risk: els.risk.value, rows: +els.rows.value };
     pendingBets++;
     syncLocks();
-    const queued = betQueue.then(() => placeBet(request));
+    // 按下就先放球並扣顯示餘額，伺服器結果回來再落下
+    const ball = board.release();
+    Sound.drop();
+    displayBalance = roundMoney(displayBalance - request.bet);
+    renderBalance();
+    const queued = betQueue.then(() => placeBet(request, ball));
     betQueue = queued.catch(() => false).finally(() => {
       pendingBets--;
       syncLocks();
@@ -144,8 +149,16 @@
     return queued;
   }
 
-  async function placeBet({ bet, risk, rows }) {
+  // 投注沒成立：收回先放的球與先扣的顯示餘額
+  function undoRelease(ball, bet) {
+    ball.cancel();
+    displayBalance = roundMoney(displayBalance + bet);
+    renderBalance();
+  }
+
+  async function placeBet({ bet, risk, rows }, ball) {
     if (bet > balance) {
+      undoRelease(ball, bet);
       toast(t('insufficient'));
       return false;
     }
@@ -159,12 +172,10 @@
       const payout = platform.moneyValue(response.payout);
       const finalBalance = platform.moneyValue(response.balance);
       balance = finalBalance;
-      displayBalance = roundMoney(displayBalance - bet);
-      renderBalance();
-      board.drop(response.outcome, { bet, payout });
-      Sound.drop();
+      ball.fall(response.outcome, { bet, payout });
       return true;
     } catch (error) {
+      undoRelease(ball, bet);
       toast(error.message || '平台連線失敗');
       try {
         const session = await platform.openSession();
