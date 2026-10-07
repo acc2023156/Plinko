@@ -3,7 +3,15 @@ const Sound = (() => {
   let ctx = null;
   let enabled = true;
   let lastTick = 0;
-  try { enabled = localStorage.getItem('plinko.sound') !== 'off'; } catch (e) { /* storage unavailable */ }
+  // 音效音量跟著共用「音源」（大廳與遊戲共用 localStorage 的 gd-music.sfx，0–100；0 = 靜音）
+  const sfxLevel = () => { try { const p = JSON.parse(localStorage.getItem('gd-music')) || {}; return p.sfx === undefined ? 1 : p.sfx / 100; } catch (e) { return 1; } };
+  let master = null;
+  enabled = sfxLevel() > 0;
+  window.addEventListener('gd-audio-change', () => {
+    enabled = sfxLevel() > 0;
+    if (master) master.gain.value = sfxLevel();
+    if (!enabled && typeof Sound !== 'undefined' && Sound.humStop) Sound.humStop();
+  });
 
   // Browsers only allow audio after a user gesture, so the context is created on first use.
   function audio() {
@@ -11,6 +19,9 @@ const Sound = (() => {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = sfxLevel();
+      master.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
@@ -27,7 +38,7 @@ const Sound = (() => {
     if (slide) osc.frequency.exponentialRampToValueAtTime(freq * slide, t + dur);
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(g).connect(ac.destination);
+    osc.connect(g).connect(master);
     osc.start(t);
     osc.stop(t + dur + 0.02);
   }
